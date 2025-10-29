@@ -68,7 +68,7 @@ def cat(
     """
     try:
         container: Container = get_container(ctx)
-        mode = FileReadMode.bytes if mode else FileReadMode.string
+        mode = FileReadMode.bytes if mode else FileReadMode.string  # mypy фу-фу
         data = container.console_service.cat(
             filename,
             mode=mode,
@@ -80,9 +80,9 @@ def cat(
     except OSError as e:
         typer.echo(e)
 
-@app.command()
-def lox():
-    print("idididi")
+# @app.command()
+# def lox():
+#     print("idididi")
 
 
 if __name__ == "__main__":
