@@ -80,6 +80,10 @@ def cat(
     except OSError as e:
         typer.echo(e)
 
+@app.command()
+def lox():
+    print("idididi")
+
 
 if __name__ == "__main__":
     app()
