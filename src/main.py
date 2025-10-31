@@ -98,7 +98,7 @@ def cat(
     """
     try:
         container: Container = get_container(ctx)
-        mode = FileReadMode.bytes if mode else FileReadMode.string
+        mode = FileReadMode.bytes if mode else FileReadMode.string  # mypy фу-фу
         data = container.console_service.cat(
             filename,
             mode=mode,
