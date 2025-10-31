@@ -6,7 +6,7 @@ LOGGING_CONFIG = {
     "disable_existing_loggers": False,
     "formatters": {
         "standard": {
-            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            "format": "[%(asctime)s] %(levelname)s %(name)s: %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         }
     },
@@ -29,7 +29,7 @@ LOGGING_CONFIG = {
     "loggers": {
         "": {
             "handlers": ["console", "file"],
-            "level": "INFO",
+            "level": "DEBUG",
             "propagate": True,
         }
     },
