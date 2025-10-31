@@ -11,11 +11,11 @@ LOGGING_CONFIG = {
         }
     },
     "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "standard",
-            "level": "DEBUG",
-        },
+        # "console": {
+        #     "class": "logging.StreamHandler",
+        #     "formatter": "standard",
+        #     "level": "DEBUG",
+        # },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "standard",
@@ -28,7 +28,8 @@ LOGGING_CONFIG = {
     },
     "loggers": {
         "": {
-            "handlers": ["console", "file"],
+            # "handlers": ["console", "file"],
+            "handlers": ["file"],
             "level": "DEBUG",
             "propagate": True,
         }

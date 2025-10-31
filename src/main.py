@@ -15,7 +15,15 @@ from typing import Annotated
 
 app = Typer()
 
-_initialized = False
+_current_path: Path 
+
+def set_path(newPath):
+    """
+    Used in ConsoleService to deliver current path to main to show it in shell.
+    """
+    global _current_path
+    _current_path = newPath
+
 
 def get_container(ctx: Context) -> Container:
     container = ctx.obj
@@ -26,29 +34,25 @@ def get_container(ctx: Context) -> Container:
 
 @app.callback()
 def main(ctx: Context):
-    global _initialized
-    if not _initialized:
-        logging.config.dictConfig(LOGGING_CONFIG)
-        logger = logging.getLogger(__name__)
-        # logger.info(app.command())
-        ctx.obj = Container(
-            console_service=ConsoleService(logger=logger),
-        )
-        _initialized = True
-    #print(ctx.obj.console_service._currentPath)
+    logging.config.dictConfig(LOGGING_CONFIG)
+    logger = logging.getLogger(__name__)
+    ctx.obj = Container(
+        console_service=ConsoleService(logger=logger, set_path_function=set_path),
+    )
 
 
 @app.command()
-def shell(ctx: Context):
+def shell(ctx: Context):    
     """
     Launch interactive mode
     """
     print("Интерактивная мини-оболочка с командами. \nВыход: exit, quit")
-
-    container: Container = get_container(ctx)
+    
+    global _current_path
+    _current_path = get_container(ctx).console_service._current_path
     while True:
         try:
-            command: str = input(f"{str(container.console_service._currentPath)} ")
+            command: str = input(f"{str(_current_path)} ")
             if command in ["exit", "quit"]:
                 break
             app(command.split(), standalone_mode=False)
@@ -131,26 +135,62 @@ def cd(
 @app.command()
 def cp(
     ctx: Context,
-    file: str,           # str?
+    filename: str,           # str?
     path: str
 ):
     """
     Copy file to destination
     :param ctx:   typer context object for imitating di container
-    :param file:  path of the file to be copied 
+    :param filename:  path of the file to be copied 
     :param path:  destination path
     :return:
     """
     try:
         container: Container = get_container(ctx)
-        container.console_service.cp(file, path)
+        container.console_service.cp(filename, path)
+    except OSError as e:
+        typer.echo(e)
+        
+@app.command()
+def mv(
+    ctx: Context,
+    filename: str,
+    path: str
+):
+    """
+    Move file to destination
+    :param ctx:   typer context object for imitating di container
+    :param filename:  path of the file to be moved 
+    :param path:  destination path
+    :return:
+    """
+    try:
+        container: Container = get_container(ctx)
+        container.console_service.mv(filename, path)
+    except OSError as e:
+        typer.echo(e)
+        
+@app.command()
+def rm(
+    ctx: Context,
+    filename: str,
+    r: bool = False
+):
+    """
+    Remove file
+    :param ctx:   typer context object for imitating di container
+    :param filename: path of the file to be removed 
+    :return:
+    """
+    try:
+        container: Container = get_container(ctx)
+        container.console_service.rm(filename, r)
     except OSError as e:
         typer.echo(e)
 
 
 if __name__ == "__main__":
     app()
-    main()
 
 
 # Заметки
