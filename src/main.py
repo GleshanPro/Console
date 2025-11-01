@@ -4,7 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
-import typer
+import typer # type: ignore
 from typer import Typer, Context
 
 from src.dependencies.container import Container
@@ -15,14 +15,15 @@ from typing import Annotated
 
 app = Typer()
 
-_current_path: Path 
+_current_path: Path
+_shell_mode: bool = False
 
-def set_path(newPath):
+def set_path(new_path: Path):
     """
     Used in ConsoleService to deliver current path to main to show it in shell.
     """
     global _current_path
-    _current_path = newPath
+    _current_path = new_path
 
 
 def get_container(ctx: Context) -> Container:
@@ -34,41 +35,67 @@ def get_container(ctx: Context) -> Container:
 
 @app.callback()
 def main(ctx: Context):
+    global _shell_mode
+
     logging.config.dictConfig(LOGGING_CONFIG)
     logger = logging.getLogger(__name__)
+    command = " ".join(sys.argv[1:])
+    if not _shell_mode:
+        logger.info(command)
     ctx.obj = Container(
         console_service=ConsoleService(logger=logger, set_path_function=set_path),
     )
 
 
 @app.command()
-def shell(ctx: Context):    
+def shell(ctx: Context):
     """
     Launch interactive mode
     """
     print("Интерактивная мини-оболочка с командами. \nВыход: exit, quit")
-    
-    global _current_path
-    _current_path = get_container(ctx).console_service._current_path
+
+    global _current_path, _shell_mode
+    container: Container = get_container(ctx)
+
+    _current_path = container.console_service._current_path
+    _shell_mode = True
+
+    logger = container.console_service._logger
     while True:
         try:
-            command: str = input(f"{str(_current_path)} ")
-            if command in ["exit", "quit"]:
+            command_input: str = input(f"{str(_current_path)} ")
+            if command_input in ["exit", "quit"]:
                 break
-            app(command.split(), standalone_mode=False)
+            command_params: list[str] = []
+            param: str = ''
+            open_quotations: bool = False
+            for c in command_input:
+                if c in ('"', "'"):
+                    open_quotations = not open_quotations
+                    continue
+                elif c == ' ' and not open_quotations:
+                    command_params.append(param)
+                    param = ''
+                    continue
+                param += c
+            command_params.append(param)
+
+            app(command_params, standalone_mode=False)
+            logger.info(command_input)
         except OSError as e:
             typer.echo(e)
         except KeyboardInterrupt:
             break
 
 
-@app.command()
+@app.command(help="List all files in a directory")
 def ls(
     ctx: Context,
     path: Annotated[str, typer.Argument(
         ..., exists=False, readable=False, help="File to print"
     )] = '.',                                                        # default - current folder.
-    l: bool = False
+    # l: Annotated[bool, typer.Option(help="Get detailed information about files")] = False
+    long: Annotated[bool, typer.Option("--long", "-l", help="Detailed file listing")] = False
 ) -> None:
     """
     List all files in a directory.
@@ -79,19 +106,19 @@ def ls(
     """
     try:
         container: Container = get_container(ctx)
-        content = container.console_service.ls(path, l)
+        content = container.console_service.ls(path, long)
         sys.stdout.writelines(content)
     except OSError as e:
         typer.echo(e)
 
 
-@app.command()
+@app.command(help="Cat a file")
 def cat(
     ctx: Context,
-    filename: Path = typer.Argument(
+    filename: str = typer.Argument(
         ..., exists=False, readable=False, help="File to print"
     ),
-    mode: bool = typer.Option(False, "--bytes", "-b", help="Read as bytes"),
+    mode: Annotated[bool, typer.Option("--bytes, -b", help="Read as bytes")] = False
 ):
     """
     Cat a file
@@ -102,10 +129,10 @@ def cat(
     """
     try:
         container: Container = get_container(ctx)
-        mode = FileReadMode.bytes if mode else FileReadMode.string  # mypy фу-фу
+        mode_param = FileReadMode.bytes if mode else FileReadMode.string
         data = container.console_service.cat(
             filename,
-            mode=mode,
+            mode=mode_param,
         )
         if isinstance(data, bytes):
             sys.stdout.buffer.write(data)
@@ -115,10 +142,10 @@ def cat(
         typer.echo(e)
 
 
-@app.command()
+@app.command(help="Change directory")
 def cd(
     ctx: Context,
-    path: str           # str?
+    path: Annotated[str, typer.Argument(help="Destination directory")]
 ):
     """
     Change directory
@@ -132,17 +159,17 @@ def cd(
     except OSError as e:
         typer.echo(e)
 
-@app.command()
+@app.command(help="Copy file to destination")
 def cp(
     ctx: Context,
-    filename: str,           # str?
-    path: str,
-    r: bool = False
+    filename: Annotated[str, typer.Argument(help="File path")],
+    path: Annotated[str, typer.Argument(help="Destination directory")],
+    r: Annotated[bool, typer.Option("--recursive, -r", help="Recursive folder copy")] = False
 ):
     """
     Copy file to destination
     :param ctx:   typer context object for imitating di container
-    :param filename:  path of the file to be copied 
+    :param filename:  path of the file to be copied
     :param path:  destination path
     :param r:     option of recursive copy
     :return:
@@ -152,17 +179,17 @@ def cp(
         container.console_service.cp(filename, path, r)
     except OSError as e:
         typer.echo(e)
-        
-@app.command()
+
+@app.command(help="Move file to destination")
 def mv(
     ctx: Context,
-    filename: str,
-    path: str
+    filename: Annotated[str, typer.Argument(help="File path")],
+    path: Annotated[str, typer.Argument(help="Destination directory")],
 ):
     """
     Move file to destination
     :param ctx:   typer context object for imitating di container
-    :param filename:  path of the file to be moved 
+    :param filename:  path of the file to be moved
     :param path:  destination path
     :return:
     """
@@ -171,22 +198,39 @@ def mv(
         container.console_service.mv(filename, path)
     except OSError as e:
         typer.echo(e)
-        
-@app.command()
+
+@app.command(help="Remove file")
 def rm(
     ctx: Context,
-    filename: str,
-    r: bool = False
+    filename: Annotated[str, typer.Argument(help="File path")],
+    r: Annotated[bool, typer.Option("--recursive, -r", help="Recursive folder deletion")] = False
 ):
     """
     Remove file
     :param ctx:   typer context object for imitating di container
-    :param filename: path of the file to be removed 
+    :param filename: path of the file to be removed
+    :param r: recursive remove of direction
     :return:
     """
     try:
         container: Container = get_container(ctx)
         container.console_service.rm(filename, r)
+    except OSError as e:
+        typer.echo(e)
+
+
+@app.command(help="Archive folder to .zip")
+def zip(
+    ctx: Context,
+    folder: Annotated[str, typer.Argument(help="Path of folder to be archived")],
+    archive: Annotated[str, typer.Argument(help="Name of archive to be created")]
+):
+    """
+    Zip folder
+    """
+    try:
+        container: Container = get_container(ctx)
+        container.console_service.zip(folder, archive)
     except OSError as e:
         typer.echo(e)
 

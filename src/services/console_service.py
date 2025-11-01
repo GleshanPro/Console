@@ -1,25 +1,29 @@
-import logging
+# import logging
 from logging import Logger
-import os, shutil
-from os import PathLike, path
+import os
+import shutil
+from os import path
 import time
 from pathlib import Path
 from typing import Literal
 
 from src.enums.file_mode import FileReadMode
 
-import typer
 
 import platform
 
 import stat
 
+# from zipfile import ZipFile
+
+from typing import Callable
+
 
 class ConsoleService():
-    def __init__(self, logger: Logger, set_path_function: callable):
+    def __init__(self, logger: Logger, set_path_function: Callable[[Path], None]):
         self._logger = logger
         self._current_path: Path = Path('')
-        self.set_path_main = set_path_function
+        self.set_path_main: Callable[[Path], None] = set_path_function
 
         self._current_path_file = Path('src/services/curpath.txt')
         # Current directory is written to file curpath.txt
@@ -28,14 +32,14 @@ class ConsoleService():
             self.check_path_exists(Path(current_path_file_data))
         except OSError:
             current_path_file_data = ''
-            
+
         if current_path_file_data == '':
-            self._current_path = path.curdir
-            self._current_path_file.write_text(str(Path().resolve()))
+            self._current_path = Path(path.abspath('.'))
+            self._current_path_file.write_text(path.abspath('.'))
         else:
             self._current_path = Path(current_path_file_data)
         self.set_path_main(self._current_path)
-            
+
     def check_path_exists(self, path, path_type: str = "Folder"):
         """
         Check path existence, raise error
@@ -47,29 +51,30 @@ class ConsoleService():
             self._logger.error(msg)
             raise FileNotFoundError(msg)
 
-    def handle_path(self, path: str, isDir: bool = None) -> Path:
-        path_type: str = 'Folder' if isDir else 'File' 
+    def handle_path(self, pathname: str, isDir: bool = False, checkType: bool = False) -> Path:
+        path_type: str = 'Folder' if isDir else 'File'
 
-        path = os.path.join(self._current_path, path)
-        path = Path(os.path.normpath(path))
+        pathname = os.path.join(self._current_path, pathname)
+        path: Path = Path(os.path.normpath(pathname))
         self.check_path_exists(path, path_type)
-        
-        if isDir != None:
+
+        msg: str = ""
+        if checkType:
             if isDir and not path.is_dir():
-                msg: str = f"You entered {path} is not a directory"
+                msg = f"You entered {path} is not a directory"
                 self._logger.error(msg)
                 raise NotADirectoryError(msg)
-            if not isDir and path.is_dir(follow_symlinks=True):
-                msg: str = f"You entered {path} is not a file"
+            elif not isDir and path.is_dir(follow_symlinks=True):
+                msg = f"You entered {path} is not a file"
                 self._logger.error(msg)
                 raise IsADirectoryError(msg)
         return path
 
-    def ls(self, path: PathLike[str] | str, l: bool = False) -> list[str]:
-        path = self.handle_path(path, True)
+    def ls(self, pathname: str, long: bool = False) -> list[str]:
+        path = self.handle_path(pathname, True, True)
         self._logger.info(f"Listing {path}")
-        if l:
-            
+        if long:
+
             # permissions = stat.filemode(file_stat.st_mode)
             if platform.system() == "Windows":
                  return [f"{stat.filemode(os.stat(entry.absolute()).st_mode)}\t{entry.stat().st_size}\t{time.ctime(entry.stat().st_atime)}\t{entry.name}" + "\n" for entry in path.iterdir()]
@@ -78,10 +83,10 @@ class ConsoleService():
 
     def cat(
         self,
-        filename: PathLike[str] | str,
+        filename: str,
         mode: Literal[FileReadMode.string, FileReadMode.bytes] = FileReadMode.string,
     ) -> str | bytes:
-        path = self.handle_path(filename, False)
+        path: Path = self.handle_path(filename, checkType=True)
         try:
             self._logger.info(f"Reading file {filename} in mode {mode}")
             match mode:
@@ -94,15 +99,16 @@ class ConsoleService():
             raise
 
     def cd(
-            self, 
-            path: PathLike[str] | str
+            self,
+            pathname: str
 ):
-        if path == '..':
+        path: Path
+        if pathname == '..':
             path = self._current_path.parent
-        elif path == '~':
+        elif pathname == '~':
             path = Path().home()
         else:
-            path = self.handle_path(path, True)
+            path = self.handle_path(pathname, True, True)
 
         self._logger.info(f"Changed directory to {path}")
         self._current_path = path
@@ -110,55 +116,79 @@ class ConsoleService():
         self._current_path_file.write_text(str(path))
 
     def cp(
-            self, 
-            filename: PathLike[str] | str,
-            path: PathLike[str] | str,
+            self,
+            filename: str,
+            pathname: str,
             r: bool = False
 ):
-        filename, path = self.handle_path(filename), self.handle_path(path, True)
-        
-        print("filename: ", filename)
-        print("path to (destination): ", path)
-        
+        file: Path = self.handle_path(filename)
+        path: Path = self.handle_path(pathname, True)
+
         try:
             if r:
-                # print(os.path.join(path, filename))
-                # os.mkdir(os.path.join(path, Path(filename).name))
-                shutil.copytree(filename, os.path.join(path, filename), dirs_exist_ok=True)
+                if not file.is_dir():
+                    msg = "Use 'cp' without '--r' to copy file"
+                    self._logger.error(msg)
+                    raise OSError(msg)
+                shutil.copytree(file, os.path.join(path, file.name), dirs_exist_ok=True, symlinks=True)
             else:
-                shutil.copy2(filename, path)
+                if file.is_dir():
+                    msg = "Use '--r' to copy directory"
+                    self._logger.error(msg)
+                    raise OSError(msg)
+                shutil.copy2(file, path)
         except Exception as e:
             self._logger.error(e)
             raise OSError(e) # Русские буквы...
-        
-        
-        self._logger.info(f"Copied {filename} to {path}")
-    
+
+        self._logger.info(f"Copied {file} to {path}")
+
     def mv(
-            self, 
-            filename: PathLike[str] | str,
-            path: PathLike[str] | str,
+            self,
+            filename: str,
+            pathname: str,
 ):
-        filename, path = self.handle_path(filename), self.handle_path(path, True)
-        
-        shutil.move(filename, path) 
-        
-        self._logger.info(f"Moved {filename} to {path}")
-        
+        file: Path = self.handle_path(filename)
+        path: Path = self.handle_path(pathname, True)
+
+        shutil.move(file, path)
+
+        self._logger.info(f"Moved {file} to {path}")
+
     def rm(
-            self, 
-            filename: PathLike[str] | str,
+            self,
+            filename: str,
             r: bool = False
 ):
-        filename = self.handle_path(filename)
-        
+        file: Path = self.handle_path(filename)
+
+        if self._current_path.is_relative_to(file):
+            msg = "Removing parent directory is forbidden"
+            self._logger.error(msg)
+            raise OSError(msg)
+
+        confirm: str = input(f"Are you sure you want to remove {file}? y/n ")
+        if confirm != 'y':
+            print("Cancel")
+            return
+
+
         try:
-            if filename.is_dir():
-                shutil.rmtree(filename)
+            if file.is_dir():
+                shutil.rmtree(file)
             else:
-                os.remove(filename)
+                os.remove(file)
         except Exception as e:
             self._logger.error(e)
             raise OSError(e) # Русские буквы...
-        
-        self._logger.info(f"Removed {filename}")
+
+        self._logger.info(f"Removed {file}")
+
+    def zip(
+            self,
+            folder: str,
+            archive: str = ''
+    ):
+        ...
+
+        # new_zip = ZipFile(f"metanit.zip", "w")
