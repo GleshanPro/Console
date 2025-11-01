@@ -31,7 +31,7 @@ LOGGING_CONFIG = {
         "": {
             # "handlers": ["console", "file"],
             "handlers": ["file"],
-            "level": "DEBUG",
+            "level": "INFO",
             "propagate": True,
         }
     },
