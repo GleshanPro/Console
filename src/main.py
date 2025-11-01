@@ -224,20 +224,20 @@ def rm(
         typer.echo(e)
 
 
-@app.command(help="Archive folder to .zip")
-def zip(
-    ctx: Context,
-    folder: Annotated[str, typer.Argument(help="Path of folder to be archived")],
-    archive: Annotated[str, typer.Argument(help="Name of archive to be created")]
-):
-    """
-    Zip folder
-    """
-    try:
-        container: Container = get_container(ctx)
-        container.console_service.zip(folder, archive)
-    except OSError as e:
-        typer.echo(e)
+# @app.command(help="Archive folder to .zip")
+# def zip(
+#     ctx: Context,
+#     folder: Annotated[str, typer.Argument(help="Path of folder to be archived")],
+#     archive: Annotated[str, typer.Argument(help="Name of archive to be created")]
+# ):
+#     """
+#     Zip folder
+#     """
+#     try:
+#         container: Container = get_container(ctx)
+#         container.console_service.zip(folder, archive)
+#     except OSError as e:
+#         typer.echo(e)
 
 
 if __name__ == "__main__":

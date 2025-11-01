@@ -192,11 +192,11 @@ class ConsoleService():
 
         self._logger.info(f"Removed {file}")
 
-    def zip(
-            self,
-            folder: str,
-            archive: str = ''
-    ):
-        ...
+    # def zip(
+    #         self,
+    #         folder: str,
+    #         archive: str = ''
+    # ):
+    #     ...
 
-        # new_zip = ZipFile(f"metanit.zip", "w")
+    #     # new_zip = ZipFile(f"metanit.zip", "w")
