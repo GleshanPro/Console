@@ -66,6 +66,7 @@ def shell(ctx: Context):
             command_input: str = input(f"{str(_current_path)} ")
             if command_input in ["exit", "quit"]:
                 break
+            
             command_params: list[str] = []
             param: str = ''
             open_quotations: bool = False
@@ -80,8 +81,13 @@ def shell(ctx: Context):
                 param += c
             command_params.append(param)
 
-            app(command_params, standalone_mode=False)
             logger.info(command_input)
+            try:
+                app(command_params, standalone_mode=False)
+            except Exception as e:
+                typer.echo(e)
+                logger.error(e)
+            
         except OSError as e:
             typer.echo(e)
         except KeyboardInterrupt:
@@ -94,7 +100,6 @@ def ls(
     path: Annotated[str, typer.Argument(
         ..., exists=False, readable=False, help="File to print"
     )] = '.',                                                        # default - current folder.
-    # l: Annotated[bool, typer.Option(help="Get detailed information about files")] = False
     long: Annotated[bool, typer.Option("--long", "-l", help="Detailed file listing")] = False
 ) -> None:
     """
@@ -164,7 +169,7 @@ def cp(
     ctx: Context,
     filename: Annotated[str, typer.Argument(help="File path")],
     path: Annotated[str, typer.Argument(help="Destination directory")],
-    r: Annotated[bool, typer.Option("--recursive, -r", help="Recursive folder copy")] = False
+    recursive: Annotated[bool, typer.Option("--recursive", "-r", help="Recursive folder copy")] = False
 ):
     """
     Copy file to destination
@@ -176,7 +181,7 @@ def cp(
     """
     try:
         container: Container = get_container(ctx)
-        container.console_service.cp(filename, path, r)
+        container.console_service.cp(filename, path, recursive)
     except OSError as e:
         typer.echo(e)
 

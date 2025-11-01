@@ -4,7 +4,7 @@ import os
 import shutil
 from os import path
 import time
-from pathlib import Path
+from pathlib import Path    # он стал частью console_service. Мы мокаем его
 from typing import Literal
 
 from src.enums.file_mode import FileReadMode
@@ -20,10 +20,13 @@ from typing import Callable
 
 
 class ConsoleService():
-    def __init__(self, logger: Logger, set_path_function: Callable[[Path], None]):
+    def __init__(self, logger: Logger, set_path_function: Callable[[Path], None] = None):
         self._logger = logger
         self._current_path: Path = Path('')
-        self.set_path_main: Callable[[Path], None] = set_path_function
+        
+        self.set_path_main: Callable[[Path], None] = None
+        if set_path_function:
+            self.set_path_main = set_path_function
 
         self._current_path_file = Path('src/services/curpath.txt')
         # Current directory is written to file curpath.txt
@@ -38,7 +41,8 @@ class ConsoleService():
             self._current_path_file.write_text(path.abspath('.'))
         else:
             self._current_path = Path(current_path_file_data)
-        self.set_path_main(self._current_path)
+        if self.set_path_main:
+            self.set_path_main(self._current_path)
 
     def check_path_exists(self, path, path_type: str = "Folder"):
         """
@@ -112,28 +116,30 @@ class ConsoleService():
 
         self._logger.info(f"Changed directory to {path}")
         self._current_path = path
-        self.set_path_main(self._current_path)
+        
+        if self.set_path_main:
+            self.set_path_main(self._current_path)
         self._current_path_file.write_text(str(path))
 
     def cp(
             self,
             filename: str,
             pathname: str,
-            r: bool = False
+            recursive: bool = False
 ):
         file: Path = self.handle_path(filename)
         path: Path = self.handle_path(pathname, True)
 
         try:
-            if r:
+            if recursive:
                 if not file.is_dir():
-                    msg = "Use 'cp' without '--r' to copy file"
+                    msg = "Use 'cp' without '-r' to copy file"
                     self._logger.error(msg)
                     raise OSError(msg)
                 shutil.copytree(file, os.path.join(path, file.name), dirs_exist_ok=True, symlinks=True)
             else:
                 if file.is_dir():
-                    msg = "Use '--r' to copy directory"
+                    msg = "Use '-r' to copy directory"
                     self._logger.error(msg)
                     raise OSError(msg)
                 shutil.copy2(file, path)
@@ -158,7 +164,8 @@ class ConsoleService():
     def rm(
             self,
             filename: str,
-            r: bool = False
+            r: bool = False,
+            confirm: str = 'n' # для тестов
 ):
         file: Path = self.handle_path(filename)
 
@@ -167,7 +174,8 @@ class ConsoleService():
             self._logger.error(msg)
             raise OSError(msg)
 
-        confirm: str = input(f"Are you sure you want to remove {file}? y/n ")
+        if confirm == 'n':
+            confirm: str = input(f"Are you sure you want to remove {file}? y/n ")
         if confirm != 'y':
             print("Cancel")
             return

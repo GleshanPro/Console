@@ -85,3 +85,5 @@ Python 3.13.2
 всю работу необходимо выполнять в [виртуальном окружении](https://docs.python.org/3/tutorial/venv.html)
 
 Ctrl+Shift+V предпросмотр
+
+uv run --cov=src --cov-report=html
