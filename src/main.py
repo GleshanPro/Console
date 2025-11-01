@@ -136,18 +136,20 @@ def cd(
 def cp(
     ctx: Context,
     filename: str,           # str?
-    path: str
+    path: str,
+    r: bool = False
 ):
     """
     Copy file to destination
     :param ctx:   typer context object for imitating di container
     :param filename:  path of the file to be copied 
     :param path:  destination path
+    :param r:     option of recursive copy
     :return:
     """
     try:
         container: Container = get_container(ctx)
-        container.console_service.cp(filename, path)
+        container.console_service.cp(filename, path, r)
     except OSError as e:
         typer.echo(e)
         

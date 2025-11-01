@@ -12,6 +12,8 @@ import typer
 
 import platform
 
+import stat
+
 
 class ConsoleService():
     def __init__(self, logger: Logger, set_path_function: callable):
@@ -48,7 +50,8 @@ class ConsoleService():
     def handle_path(self, path: str, isDir: bool = None) -> Path:
         path_type: str = 'Folder' if isDir else 'File' 
 
-        path = Path(os.path.join(self._current_path, path))
+        path = os.path.join(self._current_path, path)
+        path = Path(os.path.normpath(path))
         self.check_path_exists(path, path_type)
         
         if isDir != None:
@@ -66,9 +69,11 @@ class ConsoleService():
         path = self.handle_path(path, True)
         self._logger.info(f"Listing {path}")
         if l:
+            
+            # permissions = stat.filemode(file_stat.st_mode)
             if platform.system() == "Windows":
-                 return [f"{entry.stat().st_size}\t{time.ctime(entry.stat().st_atime)}\t{entry.name}" + "\n" for entry in path.iterdir()]
-            return [f"{entry.owner()}\t{entry.group()}\t{entry.stat().st_size}\t{time.ctime(entry.stat().st_atime)}\t{entry.name}" + "\n" for entry in path.iterdir()]
+                 return [f"{stat.filemode(os.stat(entry.absolute()).st_mode)}\t{entry.stat().st_size}\t{time.ctime(entry.stat().st_atime)}\t{entry.name}" + "\n" for entry in path.iterdir()]
+            return [f"{stat.filemode(os.stat(entry.absolute()).st_mode)}\t{entry.owner()}\t{entry.group()}\t{entry.stat().st_size}\t{time.ctime(entry.stat().st_atime)}\t{entry.name}" + "\n" for entry in path.iterdir()]
         return [entry.name + "\n" for entry in path.iterdir()]
 
     def cat(
@@ -108,10 +113,24 @@ class ConsoleService():
             self, 
             filename: PathLike[str] | str,
             path: PathLike[str] | str,
+            r: bool = False
 ):
         filename, path = self.handle_path(filename), self.handle_path(path, True)
         
-        ...
+        print("filename: ", filename)
+        print("path to (destination): ", path)
+        
+        try:
+            if r:
+                # print(os.path.join(path, filename))
+                # os.mkdir(os.path.join(path, Path(filename).name))
+                shutil.copytree(filename, os.path.join(path, filename), dirs_exist_ok=True)
+            else:
+                shutil.copy2(filename, path)
+        except Exception as e:
+            self._logger.error(e)
+            raise OSError(e) # Русские буквы...
+        
         
         self._logger.info(f"Copied {filename} to {path}")
     
